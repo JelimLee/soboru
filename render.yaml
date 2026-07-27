@@ -1,0 +1,19 @@
+# Render 블루프린트 — 저장소를 연결하면 이 설정으로 바로 배포된다.
+# Express 한 개가 API(/api/*)와 빌드된 프론트(dist/)를 함께 서빙하는 단일 서비스.
+services:
+  - type: web
+    name: soboru
+    runtime: node
+    plan: free
+    buildCommand: npm install && npm run build
+    startCommand: npm start
+    healthCheckPath: /api/health
+    envVars:
+      # 값은 Render 대시보드에서 직접 입력한다(저장소에 키를 두지 않기 위함).
+      - key: OPENAI_API_KEY
+        sync: false
+      # 공개 URL이므로 비용 가드를 켠 채로 둔다.
+      - key: RATE_LIMIT_PER_IP
+        value: "20"
+      - key: RATE_LIMIT_DAILY
+        value: "300"
