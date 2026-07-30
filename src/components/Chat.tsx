@@ -2,13 +2,15 @@ import { useState } from "react";
 import { sendChat } from "../lib/api";
 import type { ChatMessage, ChatResponse, RepairMode, SourceDoc } from "../lib/types";
 
-interface Props {
-  onResponse: (r: ChatResponse) => void;
-}
-
 interface DisplayMessage extends ChatMessage {
   sources?: SourceDoc[];
   repair?: RepairMode;
+}
+
+interface Props {
+  onResponse: (r: ChatResponse) => void;
+  /** 저장된 데모 대화를 그대로 띄운다(`?replay=` 재생 · 기술설명서 캡처용). */
+  seed?: DisplayMessage[];
 }
 
 // 2단계 repair 배지 — check(암묵 신호)는 확인 질문, full(명시 신호)은 재설명
@@ -23,8 +25,8 @@ const REPAIR_BADGE: Record<Exclude<RepairMode, "none">, { text: string; classNam
   },
 };
 
-export default function Chat({ onResponse }: Props) {
-  const [messages, setMessages] = useState<DisplayMessage[]>([]);
+export default function Chat({ onResponse, seed }: Props) {
+  const [messages, setMessages] = useState<DisplayMessage[]>(seed ?? []);
   const [input, setInput] = useState("");
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
