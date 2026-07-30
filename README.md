@@ -8,7 +8,7 @@
 
 ```bash
 npm install
-cp .env.example .env   # ANTHROPIC_API_KEY 입력 (없으면 MOCK 모드)
+cp .env.example .env   # OPENAI_API_KEY 입력 (없으면 MOCK 모드로 UI 확인 가능)
 npm run dev            # web(5173) + api(8787) 동시 실행
 ```
 
