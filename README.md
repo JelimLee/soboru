@@ -30,17 +30,17 @@
 
 ```mermaid
 flowchart LR
-  Q([사용자 발화]) --> C["① classify<br/>gpt-4.1-mini"]
-  C -->|dispreferred 신호| M{{"repair 판정<br/>(코드)"}}
-  C -->|keywords| R["② retrieve<br/>키워드 랭킹"]
-  R -->|"[출처 1..5]"| A["③ answer<br/>gpt-4.1"]
-  M -->|none / check / full| A
-  A --> OUT([답변 + 출처 배지])
+  Q(["사용자 발화"]) --> C["① classify<br/>gpt-4.1-mini"]
+  C -->|"dispreferred 신호"| M{{"repair 판정<br/>(코드)"}}
+  C -->|"keywords"| R["② retrieve<br/>키워드 랭킹"]
+  R -->|"출처 상위 5건"| A["③ answer<br/>gpt-4.1"]
+  M -->|"none / check / full"| A
+  A --> OUT(["답변 + 출처 배지"])
   A --> J["④-a judge<br/>근거성"]
   A --> V["④-b caverify<br/>설명의무 이행"]
-  R -.같은 출처 원문.-> J
-  R -.같은 출처 원문.-> V
-  J --> P([품질 패널])
+  R -. "같은 출처 원문" .-> J
+  R -. "같은 출처 원문" .-> V
+  J --> P(["품질 패널"])
   V --> P
 ```
 
