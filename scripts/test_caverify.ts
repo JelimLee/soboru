@@ -1,4 +1,20 @@
+/**
+ * test_caverify.ts — CA 판정기의 변별력 확인 (LLM 호출 있음, 유료)
+ *
+ * 같은 질문에 대한 두 답변을 판정기에 넣는다.
+ *   A = 거절이 안내 톤에 숨어 있고 용어 풀이·이해확인이 없는 답변
+ *   B = 같은 거절이지만 이유·대안·완화 + 용어 풀이 + 처리기간 고지가 붙은 답변
+ * 판정기가 A와 B에 다른 등급을 매기지 못하면 루브릭이 품질차를 못 잡는다는 뜻이다.
+ * (등급은 눈으로 비교한다 — 이 스크립트는 기대값을 고정하지 않는다.)
+ *
+ * 실행: npm run eval:caverify   (OPENAI_API_KEY 필요)
+ */
 import { caverify } from "../server/agents/caverify";
+
+if (!process.env.OPENAI_API_KEY) {
+  console.error("OPENAI_API_KEY가 없습니다 — 이 검증은 실제 모델 호출이 필요합니다(.env 확인).");
+  process.exit(1);
+}
 
 const Q = "제 급여통장이 금융거래한도 계좌라 이체가 막혀요. 한도를 지금 풀 수 있나요?";
 

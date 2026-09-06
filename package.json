@@ -9,8 +9,16 @@
     "dev:api": "tsx watch --env-file-if-exists=.env server/index.ts",
     "build": "tsc -b && vite build",
     "start": "tsx server/index.ts",
-    "lint": "oxlint",
     "preview": "vite preview",
+    "typecheck": "tsc -b",
+    "lint": "oxlint",
+    "test": "tsx --test tests/*.test.ts",
+    "eval": "npm run eval:repair && npm run eval:caverify",
+    "eval:repair": "tsx --env-file-if-exists=.env scripts/test_repair.ts",
+    "eval:caverify": "tsx --env-file-if-exists=.env scripts/test_caverify.ts",
+    "eval:pipeline": "tsx --env-file-if-exists=.env scripts/test_pipeline.ts",
+    "eval:perturb": "tsx --env-file-if-exists=.env scripts/ca_perturb.ts",
+    "demo": "tsx scripts/make_demo.ts",
     "ingest": "tsx --env-file-if-exists=.env scripts/ingest.ts"
   },
   "dependencies": {
