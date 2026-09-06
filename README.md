@@ -1,6 +1,6 @@
 # 소보루 (working title)
 
-**답변의 근거와 품질을 스스로 증명하는 금융 소비자 보호 에이전트** — 제8회 KB AI Challenge 출품작.
+**근거를 보여주고, 못 알아들으면 다시 설명하는 금융 소비자 보호 에이전트** — 제8회 KB AI Challenge 출품작.
 
 전략·아키텍처 문서: `../docs/` (01 전략, 02 아키텍처, 03 일정, 04·05 제출물)
 
@@ -47,7 +47,7 @@ CA의 repair initiation은 단계적이라는 원칙을 제품화 — 신호 강
 
 ```
 server/agents/   4개 에이전트 (classify / retrieve / answer / judge)
-server/lib/      anthropic·supabase 클라이언트, mock
+server/lib/      openai·supabase 클라이언트, mock
 src/components/  Chat(출처 배지), QualityPanel(품질 패널)
 supabase/        schema.sql (Supabase SQL Editor에서 실행)
 scripts/         ingest.ts (jsonl → documents 테이블)
