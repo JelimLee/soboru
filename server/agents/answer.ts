@@ -1,5 +1,6 @@
 import OpenAI from "openai";
 import { openai, GENERATION_MODEL } from "../lib/llm";
+import { formatSources } from "../lib/prompt";
 import type { ChatMessage, RepairMode, SourceDoc } from "../lib/types";
 
 const SYSTEM = `너는 금융 소비자 보호 에이전트 "소보루"다. 금융 소비자가 자신의 권리를 이해하고 행사할 수 있도록 돕는다.
@@ -30,12 +31,35 @@ const SYSTEM = `너는 금융 소비자 보호 에이전트 "소보루"다. 금�
 
 **[REPAIR] — 명시 신호(미이해·불만 표명)**: 같은 내용을 반복하지 말고 ① 더 일상적인 언어로 ② 구체적 사례를 들어 ③ 더 짧은 문장으로 재설명한다.`;
 
-const MODE_DIRECTIVE: Record<RepairMode, string> = {
+/** repair 모드별로 답변 프롬프트 맨 앞에 붙는 지시문. `none`이면 아무것도 붙지 않는다. */
+export const MODE_DIRECTIVE: Record<RepairMode, string> = {
   none: "",
   check:
     "[CHECK] 사용자 반응에 머뭇거림·유보 신호가 있다. 이해하지 못했다고 단정하지 말고, 직전 답변에서 걸렸을 법한 지점 하나를 지목해 더 풀어드릴지 짧게 물어라.\n",
   full: "[REPAIR] 사용자가 직전 설명을 충분히 이해하지 못했다. 더 쉽게 재설명하라.\n",
 };
+
+/**
+ * 답변 생성용 user 메시지를 조립한다(LLM 호출 없는 순수 함수 — 단위 테스트 대상).
+ *
+ * 근거가 하나도 없을 때 참고 자료 칸을 비워 두면 모델이 사전지식으로 단정해 버린다.
+ * 그래서 "출처 없음"을 명시하고 사실 주장을 금지하는 문장을 자리에 채워 넣는다.
+ */
+export function buildAnswerPrompt(
+  message: string,
+  sources: SourceDoc[],
+  repairMode: RepairMode,
+): string {
+  const sourceBlock = formatSources(sources, {
+    includeDocType: true,
+    emptyText: "(검색된 출처 없음 — 사실 주장을 하지 말고 공식 확인 절차를 안내할 것)",
+  });
+  return [
+    MODE_DIRECTIVE[repairMode],
+    `[참고 자료]\n${sourceBlock}`,
+    `\n[사용자 문의]\n${message}`,
+  ].join("\n");
+}
 
 export async function answer(
   message: string,
@@ -45,21 +69,7 @@ export async function answer(
 ): Promise<string> {
   if (!openai) throw new Error("MOCK 모드에서는 호출되지 않아야 함");
 
-  const sourceBlock =
-    sources.length > 0
-      ? sources
-          .map(
-            (s, i) =>
-              `[출처 ${i + 1}] (${s.doc_type}) ${s.title}\n${s.content}`,
-          )
-          .join("\n\n")
-      : "(검색된 출처 없음 — 사실 주장을 하지 말고 공식 확인 절차를 안내할 것)";
-
-  const userContent = [
-    MODE_DIRECTIVE[repairMode],
-    `[참고 자료]\n${sourceBlock}`,
-    `\n[사용자 문의]\n${message}`,
-  ].join("\n");
+  const userContent = buildAnswerPrompt(message, sources, repairMode);
 
   const messages: OpenAI.Chat.Completions.ChatCompletionMessageParam[] = [
     { role: "system", content: SYSTEM },

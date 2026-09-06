@@ -1,4 +1,5 @@
 import { openai, JUDGE_MODEL, parseJson } from "../lib/llm";
+import { formatSources } from "../lib/prompt";
 import type { CAReport, RepairMode, SourceDoc } from "../lib/types";
 
 /**
@@ -80,10 +81,41 @@ const CHECK_TURN_NOTE = `
 2. **직전 설명의 이해 여부를 묻고 있으면 understanding_check=true다.** 이 턴의 존재 목적이 곧 이해확인이다.
 3. 아직 설명을 제공하는 턴이 아니므로, 용어 풀이(F1)와 중요사항 고지(F6)는 이 턴의 평가 대상이 아니다. 해당 항목은 형식적으로만 채우고 evidence는 빈 문자열로 둔다.`;
 
-function grade(score: number, applicable: number): CAReport["grade"] {
+/** 판정 원문(LLM 출력) — 집계 전 단계. */
+export type CAVerdicts = Omit<CAReport, "score" | "applicable" | "grade">;
+
+/**
+ * 적용 가능한 차원 중 통과 비율을 등급으로 환산한다.
+ * 적용 가능한 차원이 하나도 없으면(예: 판정할 거리가 없는 턴) 감점 근거가 없으므로 A.
+ */
+export function grade(score: number, applicable: number): CAReport["grade"] {
   if (applicable === 0) return "A";
   const r = score / applicable;
   return r >= 0.9 ? "A" : r >= 0.7 ? "B" : r >= 0.4 ? "C" : "D";
+}
+
+/**
+ * 결정론적 집계 — 등급을 LLM에게 맡기지 않고 차원별 pass/fail에서 직접 계산한다.
+ * 같은 판정 원문이면 항상 같은 등급이 나와야 화면·리포트가 서로 어긋나지 않는다.
+ *
+ * 미적용(na) 규칙:
+ * - F2는 거절이 있을 때만 — 거절하지 않은 답변에 "거절 응대"를 채점할 수 없다.
+ * - F6은 고지 대상이 있을 때만.
+ * - 이해확인 턴(`check`)은 **설명을 제공하는 턴이 아니므로** F1(용어 풀이)·F6(고지)이
+ *   구조적으로 미적용이다. 이 예외가 없으면 "더 풀어드릴까요?" 한 문장이
+ *   용어 풀이 실패로 채점된다.
+ */
+export function aggregateCA(p: CAVerdicts, isCheckTurn: boolean): CAReport {
+  const dims: boolean[] = [];
+  if (!isCheckTurn) dims.push(p.f1_jargon.pass); // F1: 용어 풀이 여부
+  if (p.f2_refusal.has_refusal) dims.push(!p.f2_refusal.bald); // F2: 맨살거절이 아니면 pass
+  // F4: 이해확인이 있으면 pass, 이해확인 없이 용건확인만으로 닫으면 fail
+  dims.push(!p.f4_understanding.pre_closing_only || p.f4_understanding.understanding_check);
+  if (!isCheckTurn && p.f6_disclosure.applicable) dims.push(p.f6_disclosure.disclosed); // F6
+
+  const applicable = dims.length;
+  const score = dims.filter(Boolean).length;
+  return { ...p, score, applicable, grade: grade(score, applicable) };
 }
 
 export async function caverify(
@@ -95,10 +127,7 @@ export async function caverify(
   if (!openai) throw new Error("MOCK 모드에서는 호출되지 않아야 함");
   const isCheckTurn = turnType === "check";
 
-  const sourceBlock =
-    sources.length > 0
-      ? sources.map((s, i) => `[출처 ${i + 1}] ${s.title}\n${s.content}`).join("\n\n")
-      : "(출처 없음)";
+  const sourceBlock = formatSources(sources, { emptyText: "(출처 없음)" });
 
   const completion = await openai.chat.completions.create({
     model: JUDGE_MODEL,
@@ -115,19 +144,8 @@ export async function caverify(
     },
   });
 
-  const p = parseJson<Omit<CAReport, "score" | "applicable" | "grade">>(
-    completion.choices[0].message.content,
+  return aggregateCA(
+    parseJson<CAVerdicts>(completion.choices[0].message.content),
+    isCheckTurn,
   );
-
-  // 결정론적 집계: 각 F의 pass 판정 (na 제외)
-  // 이해확인 턴은 설명을 제공하는 턴이 아니므로 F1(용어 풀이)·F6(고지)이 구조적으로 미적용.
-  const dims: boolean[] = [];
-  if (!isCheckTurn) dims.push(p.f1_jargon.pass); // F1: 용어 풀이 여부
-  if (p.f2_refusal.has_refusal) dims.push(!p.f2_refusal.bald); // F2: 거절 있을 때만, 맨살거절 아니면 pass
-  dims.push(!p.f4_understanding.pre_closing_only || p.f4_understanding.understanding_check); // F4
-  if (!isCheckTurn && p.f6_disclosure.applicable) dims.push(p.f6_disclosure.disclosed); // F6: 고지 대상 있을 때만
-
-  const applicable = dims.length;
-  const score = dims.filter(Boolean).length;
-  return { ...p, score, applicable, grade: grade(score, applicable) };
 }

@@ -1,4 +1,5 @@
 import { openai, JUDGE_MODEL, parseJson } from "../lib/llm";
+import { formatSources } from "../lib/prompt";
 import type { QualityReport, SourceDoc } from "../lib/types";
 
 const SCHEMA: Record<string, unknown> = {
@@ -65,12 +66,7 @@ export async function judge(
 ): Promise<QualityReport> {
   if (!openai) throw new Error("MOCK 모드에서는 호출되지 않아야 함");
 
-  const sourceBlock =
-    sources.length > 0
-      ? sources
-          .map((s, i) => `[출처 ${i + 1}] ${s.title}\n${s.content}`)
-          .join("\n\n")
-      : "(출처 없음)";
+  const sourceBlock = formatSources(sources, { emptyText: "(출처 없음)" });
 
   const completion = await openai.chat.completions.create({
     model: JUDGE_MODEL,

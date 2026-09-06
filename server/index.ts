@@ -17,6 +17,7 @@ import {
   MOCK_SOURCES,
 } from "./lib/mock";
 import { decideRepairMode } from "./lib/repair";
+import { createQuotaGuard } from "./lib/quota";
 import type { ChatMessage, ChatResponse } from "./lib/types";
 
 const app = express();
@@ -24,46 +25,16 @@ app.set("trust proxy", 1); // 배포 환경(프록시 뒤)에서 실제 클라�
 app.use(cors());
 app.use(express.json());
 
-/**
- * 비용 가드 — 공개 URL이므로 누구나 호출할 수 있고, 호출마다 OpenAI 비용이 발생한다.
- * 심사자가 충분히 체험할 만큼은 허용하되 무제한 소진은 막는다. 외부 의존성 없이 인메모리로 처리
- * (인스턴스 재시작 시 초기화됨 — 데모 규모에서는 충분).
- */
-const HOUR = 60 * 60 * 1000;
-const DAY = 24 * HOUR;
-const PER_IP_HOURLY = Number(process.env.RATE_LIMIT_PER_IP ?? 20);
-const DAILY_TOTAL = Number(process.env.RATE_LIMIT_DAILY ?? 300);
-
-const ipHits = new Map<string, { count: number; resetAt: number }>();
-let daily = { count: 0, resetAt: Date.now() + DAY };
-
-function checkQuota(ip: string): { ok: true } | { ok: false; reason: string } {
-  const now = Date.now();
-  if (now > daily.resetAt) daily = { count: 0, resetAt: now + DAY };
-  if (daily.count >= DAILY_TOTAL) {
-    return { ok: false, reason: "오늘의 데모 이용 한도에 도달했습니다. 내일 다시 시도해 주세요." };
-  }
-  const cur = ipHits.get(ip);
-  if (!cur || now > cur.resetAt) {
-    ipHits.set(ip, { count: 1, resetAt: now + HOUR });
-  } else if (cur.count >= PER_IP_HOURLY) {
-    return { ok: false, reason: `시간당 ${PER_IP_HOURLY}회까지 이용할 수 있습니다. 잠시 후 다시 시도해 주세요.` };
-  } else {
-    cur.count += 1;
-  }
-  daily.count += 1;
-  // 오래된 IP 항목 정리 (메모리 누수 방지)
-  if (ipHits.size > 5000) {
-    for (const [k, v] of ipHits) if (now > v.resetAt) ipHits.delete(k);
-  }
-  return { ok: true };
-}
+const quota = createQuotaGuard({
+  perIpHourly: Number(process.env.RATE_LIMIT_PER_IP ?? 20),
+  dailyTotal: Number(process.env.RATE_LIMIT_DAILY ?? 300),
+});
 
 app.get("/api/health", (_req, res) => {
   res.json({
     ok: true,
     mock: MOCK_MODE,
-    daily_remaining: Math.max(0, DAILY_TOTAL - daily.count),
+    daily_remaining: quota.dailyRemaining(),
   });
 });
 
@@ -84,9 +55,9 @@ app.post("/api/chat", async (req, res) => {
 
     // 비용 가드 (MOCK 모드는 비용이 없으므로 면제)
     if (!MOCK_MODE) {
-      const quota = checkQuota(req.ip ?? "unknown");
-      if (!quota.ok) {
-        res.status(429).json({ error: quota.reason });
+      const verdict = quota.check(req.ip ?? "unknown");
+      if (!verdict.ok) {
+        res.status(429).json({ error: verdict.reason });
         return;
       }
     }
