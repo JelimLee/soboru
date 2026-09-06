@@ -1,7 +1,15 @@
 import { useEffect, useState } from "react";
 import Chat from "./components/Chat";
 import QualityPanel from "./components/QualityPanel";
-import type { ChatResponse } from "./lib/types";
+import type { ChatMessage, ChatResponse, RepairMode, SourceDoc } from "./lib/types";
+
+/** `public/demo/<name>.json` 파일 모양 — `scripts/make_demo.ts`가 생성한다. */
+interface ReplayFile {
+  name: string;
+  label: string;
+  messages: (ChatMessage & { sources?: SourceDoc[]; repair?: RepairMode })[];
+  response: ChatResponse;
+}
 
 /**
  * `?replay=<name>` 이면 `public/demo/<name>.json`(실제 파이프라인 1회 실행 결과)을 그대로 띄운다.
@@ -12,13 +20,13 @@ const replay = new URLSearchParams(window.location.search).get("replay");
 
 export default function App() {
   const [lastResponse, setLastResponse] = useState<ChatResponse | null>(null);
-  const [seed, setSeed] = useState<any[] | undefined>(undefined);
+  const [seed, setSeed] = useState<ReplayFile["messages"] | undefined>(undefined);
   const [ready, setReady] = useState(!replay);
 
   useEffect(() => {
     if (!replay) return;
     fetch(`/demo/${replay}.json`)
-      .then((r) => r.json())
+      .then((r) => r.json() as Promise<ReplayFile>)
       .then((d) => {
         setSeed(d.messages);
         setLastResponse(d.response);

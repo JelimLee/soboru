@@ -72,3 +72,17 @@ export interface CAReport {
   grade: "A" | "B" | "C" | "D";
   summary: string;
 }
+
+/**
+ * `POST /api/chat` 응답 계약. 프론트(`src/lib/types.ts`)·데모 생성 스크립트가 같은 모양을 쓴다.
+ * `quality`·`ca`가 null인 경우는 판정 단계가 실패한 것이며, 답변 자체는 항상 반환된다.
+ */
+export interface ChatResponse {
+  reply: string;
+  sources: SourceDoc[];
+  classify: ClassifyResult;
+  quality: QualityReport | null;
+  ca: CAReport | null;
+  repair_mode: RepairMode;
+  mock: boolean;
+}

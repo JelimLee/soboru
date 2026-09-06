@@ -9,12 +9,16 @@
 import fs from "node:fs";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
+import type { ChatResponse, SourceDoc } from "../server/lib/types";
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const OUT_DIR = path.join(__dirname, "../public/demo");
 const API = process.env.DEMO_API ?? "http://localhost:8787/api/chat";
 
 type Msg = { role: "user" | "assistant"; content: string };
+
+/** 화면 재생용 메시지 — 어시스턴트 턴에는 출처 배지·repair 배지 정보가 붙는다. */
+type DisplayMsg = Msg & { sources?: SourceDoc[]; repair?: ChatResponse["repair_mode"] };
 
 /** 시나리오 = 사용자 발화 순서. 마지막 턴의 응답이 품질 패널에 표시된다. */
 const SCENARIOS: { name: string; label: string; turns: string[] }[] = [
@@ -35,22 +39,22 @@ const SCENARIOS: { name: string; label: string; turns: string[] }[] = [
   },
 ];
 
-async function send(message: string, history: Msg[]) {
+async function send(message: string, history: Msg[]): Promise<ChatResponse> {
   const r = await fetch(API, {
     method: "POST",
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify({ message, history }),
   });
   if (!r.ok) throw new Error(`${r.status} ${await r.text()}`);
-  return r.json();
+  return (await r.json()) as ChatResponse;
 }
 
 fs.mkdirSync(OUT_DIR, { recursive: true });
 
 for (const sc of SCENARIOS) {
   const history: Msg[] = [];
-  const messages: any[] = [];
-  let last: any = null;
+  const messages: DisplayMsg[] = [];
+  let last: ChatResponse | null = null;
   for (const turn of sc.turns) {
     messages.push({ role: "user", content: turn });
     const res = await send(turn, [...history]);
@@ -63,6 +67,7 @@ for (const sc of SCENARIOS) {
     });
     last = res;
   }
+  if (!last) throw new Error(`${sc.name}: 응답이 없습니다`);
   const out = { name: sc.name, label: sc.label, messages, response: last };
   fs.writeFileSync(path.join(OUT_DIR, `${sc.name}.json`), JSON.stringify(out, null, 2));
   console.log(

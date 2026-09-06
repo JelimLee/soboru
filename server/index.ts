@@ -17,7 +17,7 @@ import {
   MOCK_SOURCES,
 } from "./lib/mock";
 import { decideRepairMode } from "./lib/repair";
-import type { ChatMessage } from "./lib/types";
+import type { ChatMessage, ChatResponse } from "./lib/types";
 
 const app = express();
 app.set("trust proxy", 1); // 배포 환경(프록시 뒤)에서 실제 클라이언트 IP를 쓰기 위함
@@ -92,7 +92,7 @@ app.post("/api/chat", async (req, res) => {
     }
 
     if (MOCK_MODE) {
-      res.json({
+      const mocked: ChatResponse = {
         reply: MOCK_REPLY,
         sources: MOCK_SOURCES,
         classify: MOCK_CLASSIFY,
@@ -100,7 +100,8 @@ app.post("/api/chat", async (req, res) => {
         ca: MOCK_CA,
         repair_mode: "none",
         mock: true,
-      });
+      };
+      res.json(mocked);
       return;
     }
 
@@ -132,7 +133,7 @@ app.post("/api/chat", async (req, res) => {
       }),
     ]);
 
-    res.json({
+    const payload: ChatResponse = {
       reply,
       sources,
       classify: classifyResult,
@@ -140,7 +141,8 @@ app.post("/api/chat", async (req, res) => {
       ca,
       repair_mode: repairMode,
       mock: false,
-    });
+    };
+    res.json(payload);
   } catch (e) {
     console.error("[chat] 오류:", e);
     res.status(500).json({ error: e instanceof Error ? e.message : "서버 오류" });
